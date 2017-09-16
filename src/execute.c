@@ -42,32 +42,32 @@ JobDeque jobs;
 //setup execution environment
 typedef struct ExecEnv
 {
-    int num;
-    int pfd[2][2];
-    Job job;
+	int num;
+	int pfd[2][2];
+	Job job;
 } ExecEnv;
 
 static Job __new_job() {
-    return (Job) {
-        0, get_command_string(), new_PIDDeque(1),
-    };
+	return (Job) {
+		0, get_command_string(), new_PIDDeque(1),
+	};
 }
 
 static void __destroy_job(Job j) {
-    if(j.cmd != NULL)
-        free(j.cmd);
-    destroy_PIDDeque(&j.pid_list);
+	if(j.cmd != NULL)
+		free(j.cmd);
+	destroy_PIDDeque(&j.pid_list);
 }
 
 static void __init_exec_env(ExecEnv* e) {
-    assert(e != NULL);
-    e->job = __new_job();
+	assert(e != NULL);
+	e->job = __new_job();
 }
 
 static void __destroy_exec_env(ExecEnv* e)
 {
-    assert(e != NULL);
-    __destroy_job(e->job);
+	assert(e != NULL);
+	__destroy_job(e->job);
 }
 
 /***************************************************************************
@@ -83,7 +83,7 @@ char* get_current_directory(bool* should_free) {
     {
         perror("Get working dir. failed!\n");
     }
-  
+
     *should_free = true;
 
     return cwd;
@@ -94,8 +94,8 @@ const char* lookup_env(const char* env_var) {
   // TODO: Lookup environment variables. This is required for parser to be able
   // to interpret variables from the command line and display the prompt
   // correctly
-  
-    return getenv(env_var);
+
+  return getenv(env_var);
 }
 
 // Check the status of background jobs
@@ -137,100 +137,100 @@ void run_generic(GenericCommand cmd) {
   // Execute a program with a list of arguments. The `args` array is a NULL
   // terminated (last string is always NULL) list of strings. The first element
   // in the array is the executable
-    char* exec = cmd.args[0];
-    char** args = cmd.args;
+	char* exec = cmd.args[0];
+	char** args = cmd.args;
 
-    execvp(exec, args);
+	execvp(exec, args);
 
   perror("ERROR: Failed to execute program");
 }
 
 // Print strings
 void run_echo(EchoCommand cmd) {
-    // Print an array of strings. The args array is a NULL terminated (last
-    // string is always NULL) list of strings.
-    char** str = cmd.args;
+  // Print an array of strings. The args array is a NULL terminated (last
+  // string is always NULL) list of strings.
+  char** str = cmd.args;
 
-    while((*str != NULL) && (*(str + 1) != NULL))
-    {
-        printf("%s ", *str);
-        ++str;
-    }
-    if(*str != NULL)
-    {
-        printf("%s\n", *str);
-    }
+  while((*str != NULL) && (*(str + 1) != NULL))
+  {
+		printf("%s ", *str);
+		++str;
+  }
+  if(*str != NULL)
+  {
+		printf("%s\n", *str);
+  }
 
-    // Flush the buffer before returning
-    fflush(stdout);
+  // Flush the buffer before returning
+  fflush(stdout);
 }
 
 // Sets an environment variable
 void run_export(ExportCommand cmd) {
   // Write an environment variable
-    const char* env_var = cmd.env_var;
-    const char* val = cmd.val;
+  const char* env_var = cmd.env_var;
+  const char* val = cmd.val;
 
-    setenv(env_var, val, 1);
+  setenv(env_var, val, 1);
 }
 
 // Changes the current working directory
 void run_cd(CDCommand cmd) {
   // Get the directory name
-    const char* dir = cmd.dir;
+  const char* dir = cmd.dir;
 
   // Check if the directory is valid
-    if (dir == NULL) {
-        perror("ERROR: Failed to resolve path");
-        return;
-    }
+  if (dir == NULL) {
+		perror("ERROR: Failed to resolve path");
+		return;
+  }
 
   // TODO: Change directory
-    chdir(dir);
+  chdir(dir);
 
   // TODO: Update the PWD environment variable to be the new current working
   // directory and optionally update OLD_PWD environment variable to be the old
   // working directory.
-    setenv("OLD_PWD", lookup_env("PWD"), 1);
-    setenv("PWD", dir, 1);
+  setenv("OLD_PWD", lookup_env("PWD"), 1);
+  setenv("PWD", dir, 1);
 }
 
 // Sends a signal to all processes contained in a job
 void run_kill(KillCommand cmd) {
-    int signal = cmd.sig;
-    int job_id = cmd.job;
-    
-    size_t qlen = length_JobDeque(&jobs);
-    
-    for(size_t i = 0; i < qlen; i++)
+  int signal = cmd.sig;
+  int job_id = cmd.job;
+
+  size_t qlen = length_JobDeque(&jobs);
+
+  for(size_t i = 0; i < qlen; i++)
+  {
+    Job current = pop_front_JobDeque(&jobs);
+    size_t pidQLen = length_PIDDeque(&current.pid_list);
+    if(current.job_id == job_id)
     {
-        Job current = pop_front_JobDeque(&jobs);
-        size_t pidQLen = length_PIDDeque(&current.pid_list);
-        if(current.job_id == job_id)
-        {
-            for(size_t j = 0; j < pidQLen; j++)
-            {
-                pid_t tempID = pop_front_PIDDeque(&current.pid_list);
-                kill(tempID, signal);
-                push_back_PIDDeque(&current.pid_list, tempID);
-            }
-        }
-        
-        push_back_JobDeque(&jobs, current);
+      for(size_t j = 0; j < pidQLen; j++)
+      {
+        pid_t tempID = pop_front_PIDDeque(&current.pid_list);
+        kill(tempID, signal);
+        push_back_PIDDeque(&current.pid_list, tempID);
+      }
     }
+
+    push_back_JobDeque(&jobs, current);
+  }
 }
 
 // Prints the current working directory to stdout
 void run_pwd() {
   // TODO: Print the current working directory
-    bool should_free = false;
-    char* cwd = get_current_directory(&should_free);
-    fprintf(stdout, "%s\n", cwd);
+  bool should_free = false;
+  char* cwd = get_current_directory(&should_free);
+  fprintf(stdout, "%s\n", cwd);
     
   // Flush the buffer before returning
-    fflush(stdout);
-    if(should_free)
-        free(cwd);
+  fflush(stdout);
+  if(should_free)
+    free(cwd);
 }
 
 // Prints all background jobs currently in the job list to stdout
@@ -346,46 +346,46 @@ void parent_run_command(Command cmd) {
  */
 void create_process(CommandHolder holder, ExecEnv* exec_env) {
   // Read the flags field from the parser
-    bool p_in  = holder.flags & PIPE_IN;
-    bool p_out = holder.flags & PIPE_OUT;
-    bool r_in  = holder.flags & REDIRECT_IN;
-    bool r_out = holder.flags & REDIRECT_OUT;
-    bool r_app = holder.flags & REDIRECT_APPEND; // This can only be true if r_out
-                                               // is true
+  bool p_in  = holder.flags & PIPE_IN;
+  bool p_out = holder.flags & PIPE_OUT;
+  bool r_in  = holder.flags & REDIRECT_IN;
+  bool r_out = holder.flags & REDIRECT_OUT;
+  bool r_app = holder.flags & REDIRECT_APPEND; // This can only be true if r_out
+                                             // is true
 
-    // TODO: Remove warning silencers
-    (void) p_in;  // Silence unused variable warning
-    (void) p_out; // Silence unused variable warning
-    (void) r_in;  // Silence unused variable warning
-    (void) r_out; // Silence unused variable warning
-    (void) r_app; // Silence unused variable warning
+  // TODO: Remove warning silencers
+  (void) p_in;  // Silence unused variable warning
+  (void) p_out; // Silence unused variable warning
+  (void) r_in;  // Silence unused variable warning
+  (void) r_out; // Silence unused variable warning
+  (void) r_app; // Silence unused variable warning
 
-    // TODO: Setup pipes, redirects, and new process
-    //IMPLEMENT_ME();
+  // TODO: Setup pipes, redirects, and new process
+  //IMPLEMENT_ME();
 
-    //parent_run_command(holder.cmd);
-    // This should be done in the parent branch of
-    // a fork
-    
-    pid_t pid;
-    //int p1[2];
-    pid = fork();
-    
-    if(pid == 0)
-    {
-        //run child command
-     
-        child_run_command(holder.cmd);
-    
-        exit( EXIT_SUCCESS);
-    }
-    else if(pid > 0)
-    {
-        //populate pid queue, then run parent command
-        parent_run_command(holder.cmd);
-    }
-    else
-        exit( EXIT_FAILURE);
+  //parent_run_command(holder.cmd);
+  // This should be done in the parent branch of
+  // a fork
+
+  pid_t pid;
+  //int p1[2];
+  pid = fork();
+
+  if(pid == 0)
+  {
+    //run child command
+
+    child_run_command(holder.cmd);
+
+    exit(EXIT_SUCCESS);
+  }
+  else if(pid > 0)
+  {
+    //populate pid queue, then run parent command
+    parent_run_command(holder.cmd);
+  }
+  else
+    exit(EXIT_FAILURE);
 
 }
 
