@@ -76,7 +76,7 @@ static void __destroy_exec_env(ExecEnv* e)
 
 // Return a string containing the current working directory.
 char* get_current_directory(bool* should_free) {
-  
+
     char* cwd = NULL;
     cwd = getcwd(NULL, 0);
     if(cwd == NULL)
@@ -103,10 +103,36 @@ void check_jobs_bg_status() {
   // TODO: Check on the statuses of all processes belonging to all background
   // jobs. This function should remove jobs from the jobs queue once all
   // processes belonging to a job have completed.
-  IMPLEMENT_ME();
+  size_t qlen = length_JobDeque(&jobs);
+
+  for(size_t i = 0; i < qlen; i++)
+  {
+    Job current = pop_front_JobDeque(&jobs);
+    size_t pidQLen = length_PIDDeque(&current.pid_list);
+
+    for(size_t j = 0; j < pidQLen; j++)
+    {
+      pid_t current_proc = pop_front_PIDDeque(&current.pid_list);
+      int status;
+      pid_t return_proc = waitpid(current_proc, &status, WNOHANG);
+
+      if (return_proc == -1) {
+        perror("Error in process");
+      }  else if (return_proc == 0) {
+        push_back_PIDDeque(&current.pid_list, current_proc);
+      } else if (return_proc == current_proc) {
+        print_job_bg_complete(&current.job_id, current_proc, &current.cmd);
+      }
+    }
+
+    if(!length_PIDDeque(&current.pid_list) == 0)
+    {
+      push_back_JobDeque(&jobs, current);
+    }
+   }
 
   // TODO: Once jobs are implemented, uncomment and fill the following line
-  // print_job_bg_complete(job_id, pid, cmd);
+
 }
 
 // Prints the job id number, the process id of the first process belonging to
@@ -226,7 +252,7 @@ void run_pwd() {
   bool should_free = false;
   char* cwd = get_current_directory(&should_free);
   fprintf(stdout, "%s\n", cwd);
-    
+
   // Flush the buffer before returning
   fflush(stdout);
   if(should_free)
@@ -391,14 +417,14 @@ void create_process(CommandHolder holder, ExecEnv* exec_env) {
 
 // Run a list of commands
 void run_script(CommandHolder* holders) {
-    
+
     static bool first = true;
-    
+
     //holders is just a list of commands
     //ends run_script if there are no scripts to run
     if (holders == NULL)
         return;
-    
+
     if(first)
     {
         jobs = new_destructable_JobDeque(2, __destroy_job);
@@ -415,7 +441,7 @@ void run_script(CommandHolder* holders) {
 
     CommandType type; //e.g. export, cd, kill, generic
     ExecEnv env;
-    
+
     __init_exec_env(&env);
 
     // Run all commands in the `holder` array
@@ -425,11 +451,11 @@ void run_script(CommandHolder* holders) {
     if (!(holders[0].flags & BACKGROUND)) {
         while(!is_empty_PIDDeque(&env.job.pid_list)) {
             int status = 0;
-        
+
             if(waitpid(pop_front_PIDDeque(&env.job.pid_list), &status, 0) == -1)
                 exit(EXIT_FAILURE);
         }
-        
+
         __destroy_exec_env(&env);
     }
     else
@@ -438,7 +464,7 @@ void run_script(CommandHolder* holders) {
             env.job.job_id = 1;
         else
             env.job.job_id = peek_back_JobDeque(&jobs).job_id + 1;
-        
+
         push_back_JobDeque(&jobs, env.job);
         print_job_bg_start(env.job.job_id, peek_front_PIDDeque(&env.job.pid_list),
                            env.job.cmd);
