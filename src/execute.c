@@ -8,9 +8,10 @@
  */
 
 #include "execute.h"
-#include <stdio.h>
 #include "quash.h"
 #include "deque.h"
+
+#include <stdio.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -129,10 +130,7 @@ void check_jobs_bg_status() {
     {
       push_back_JobDeque(&jobs, current);
     }
-   }
-
-  // TODO: Once jobs are implemented, uncomment and fill the following line
-
+  }
 }
 
 // Prints the job id number, the process id of the first process belonging to
@@ -262,7 +260,15 @@ void run_pwd() {
 // Prints all background jobs currently in the job list to stdout
 void run_jobs() {
   // TODO: Print background jobs
-  IMPLEMENT_ME();
+  size_t qlen = length_JobDeque(&jobs);
+
+  for(int i = 0; i < qlen; i++)
+  {
+    Job current = pop_front_JobDeque(&jobs);
+    pid_t current_proc = peek_front_PIDDeque(&current.pid_list);
+    print_job(&current.job_id, current_proc, &current.cmd)
+    push_back_JobDeque(&jobs, current);
+  }
 
   // Flush the buffer before returning
   fflush(stdout);
